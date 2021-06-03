@@ -1,5 +1,5 @@
 <?php
-namespace MCS;
+namespace App\Libraries\Amazon;
 
 use Exception;
 
@@ -19,7 +19,7 @@ class MWSEndPoint{
             'date' => '2011-07-01'
         ],
         'GetMyPriceForSKU' => [
-            'method' => 'POST',
+            'method' => 'GET',
             'action' => 'GetMyPriceForSKU',
             'path' => '/Products/2011-10-01',
             'date' => '2011-10-01'
@@ -49,7 +49,7 @@ class MWSEndPoint{
             'date' => '2011-10-01'
         ],
         'GetFeedSubmissionResult' => [
-            'method' => 'POST',
+            'method' => 'GET',
             'action' => 'GetFeedSubmissionResult',
             'path' => '/',
             'date' => '2009-01-01'
