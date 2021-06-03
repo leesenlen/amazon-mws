@@ -48,6 +48,9 @@ class MWSClient{
         'A19VAU5U5O7RUS' => 'mws-fe.amazonservices.com',
         'A33AVAJ2PDY3EV' => 'mws-eu.amazonservices.com',
         'A2NODRKZP88ZB9' => 'mws-eu.amazonservices.com',
+        'A2VIGQ35RCS4UG' => 'mws.amazonservices.ae',
+        'A1C3SOZRARQ6R3' => 'mws-eu.amazonservices.com',
+        'A17E79C6D8DWNP' => 'mws-eu.amazonservices.com',
     ];
 
     protected $debugNextFeed = false;
@@ -55,8 +58,6 @@ class MWSClient{
 
     public function __construct(array $config)
     {
-
-        $this->MarketplaceIds = array_column(config('platform.amazon.site_urls'), 1, 0);
 
         foreach($config as $key => $value) {
             if (array_key_exists($key, $this->config)) {
