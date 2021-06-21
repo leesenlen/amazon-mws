@@ -1,5 +1,5 @@
 <?php
-namespace App\Libraries\Amazon;
+namespace MCS;
 
 use Exception;
 

@@ -1,4 +1,5 @@
 <?php
+
 namespace MCS;
 
 use DateTime;
@@ -12,14 +13,12 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\BadResponseException;
 use Spatie\ArrayToXml\ArrayToXml;
 
-class MWSClient{
+class MWSClient {
 
     const SIGNATURE_METHOD = 'HmacSHA256';
     const SIGNATURE_VERSION = '2';
     const DATE_FORMAT = "Y-m-d\TH:i:s.\\0\\0\\0\\Z";
     const APPLICATION_NAME = 'MCS/MwsClient';
-
-    const MWS_CLIENT_VERSION = '2018-01-31'; 
 
     private $config = [
         'Seller_Id' => null,
@@ -27,6 +26,7 @@ class MWSClient{
         'Access_Key_ID' => null,
         'Secret_Access_Key' => null,
         'MWSAuthToken' => null,
+        "Area"=>null,
         'Application_Version' => '0.0.*'
     ];
 
@@ -44,13 +44,15 @@ class MWSClient{
         'AAHKV2X7AFYLW' => 'mws.amazonservices.com.cn',
         'A39IBJ37TRP1C6' => 'mws.amazonservices.com.au',
         'A2Q3Y263D00KWC' => 'mws.amazonservices.com',
-        'A1805IZSGTT6HS' => 'mws-eu.amazonservices.com',
-        'A19VAU5U5O7RUS' => 'mws-fe.amazonservices.com',
-        'A33AVAJ2PDY3EV' => 'mws-eu.amazonservices.com',
-        'A2NODRKZP88ZB9' => 'mws-eu.amazonservices.com',
-        'A2VIGQ35RCS4UG' => 'mws.amazonservices.ae',
-        'A1C3SOZRARQ6R3' => 'mws-eu.amazonservices.com',
-        'A17E79C6D8DWNP' => 'mws-eu.amazonservices.com',
+        'kuniao'        => '52.89.158.115/kuniao-proxy',
+    ];
+
+    private $area = [
+        'NA'=>'mws-eu.amazonservices.com',
+        'EU'=>'mws-eu.amazonservices.com',
+        'FE'=>'mws.amazonservices.jp',
+        'IN'=>'mws.amazonservices.in',
+        'kuniao'=>'52.89.158.115/kuniao-proxy',
     ];
 
     protected $debugNextFeed = false;
@@ -66,33 +68,25 @@ class MWSClient{
         }
 
         $required_keys = [
-            'Marketplace_Id', 'Seller_Id', 'Access_Key_ID', 'Secret_Access_Key'
+            'Marketplace_Id', 'Seller_Id', 'Access_Key_ID', 'Secret_Access_Key', 'Area'
         ];
 
-        foreach ($required_keys as $key) {
+        foreach ($required_keys as $key) { 
             if(is_null($this->config[$key])) {
                 throw new Exception('Required field ' . $key . ' is not set');
             }
         }
-
-        if (!isset($this->MarketplaceIds[$this->config['Marketplace_Id']])) {
-            throw new Exception('Invalid Marketplace Id');
+        if (!isset($this->area[$this->config['Area']])) {
+            throw new Exception('Invalid Area');
         }
 
         $this->config['Application_Name'] = self::APPLICATION_NAME;
-        $this->config['Region_Host'] = $this->MarketplaceIds[$this->config['Marketplace_Id']];
-        if (!empty($this->config['Access_Key_ID']) && strlen($this->config['Access_Key_ID'])<4) {
-            // $this->config['Region_Url'] = 'http://ec2-52-89-158-115.us-west-2.compute.amazonaws.com';
-            $this->config['Region_Url'] = 'http://52.89.158.115';
-            $this->config['Application_Version'] = '0.0.1';
-            $this->config['Application_Name'] = 'kuniao_app';
-            // $this->config['Access_Key_ID'] = "2";
-            // if (in_array($this->config['Access_Key_ID'], ['UK', 'ES', "IT", "FR", "DE"])) {
-                // $this->config['Access_Key_ID'] = $this->config['Access_Key_ID'] . "1";
-            // }
-            // $this->config['Secret_Access_Key'] = "2";
-        } else {
-            $this->config['Region_Url'] = 'https://' . $this->config['Region_Host'];
+        $this->config['Region_Host'] = $this->area[$this->config['Area']];
+        //兼容酷鸟开发者
+        if($this->config['Secret_Access_Key'] != 2){
+            $this->config['Region_Url'] = 'https://' . $this->config['Region_Host']; 
+        }else{
+            $this->config['Region_Url'] = 'http://' . $this->MarketplaceIds['kuniao']; 
         }
     }
 
@@ -1083,9 +1077,22 @@ class MWSClient{
     public function RequestReport($report, $StartDate = null, $EndDate = null)
     {
         $query = [
-            'MarketplaceIdList.Id.1' => $this->config['Marketplace_Id'],
+            //'MarketplaceIdList.Id.1' => $this->config['Marketplace_Id'],
             'ReportType' => $report
         ];
+        /*if(is_string($this->config['Marketplace_Id'])){
+            $query['MarketplaceIdList.Id.1'] = $this->config['Marketplace_Id'];
+        }else{
+            if (is_array($this->config['Marketplace_Id'])) {
+                $i = 1;
+                foreach ($this->config['Marketplace_Id'] as $marketplaceId) {
+                    $query['MarketplaceIdList.Id.'.$i] = $marketplaceId;
+                    $i++;
+                }
+            }else{
+                throw new Exception('Request report marketplace_id param error');
+            }
+        }*/
 
         if (!is_null($StartDate)) {
             if (!is_a($StartDate, 'DateTime')) {
@@ -1102,7 +1109,6 @@ class MWSClient{
                 $query['EndDate'] = gmdate(self::DATE_FORMAT, $EndDate->getTimestamp());
             }
         }
-
         $result = $this->request(
             'RequestReport',
             $query
@@ -1111,7 +1117,9 @@ class MWSClient{
         if (isset($result['RequestReportResult']['ReportRequestInfo']['ReportRequestId'])) {
             return $result['RequestReportResult']['ReportRequestInfo']['ReportRequestId'];
         } else {
-            throw new Exception('Error trying to request report');
+            $message = is_array($result) ? json_encode($result) : $result;
+
+            throw new Exception('Error trying to request report, error:'.$messag);
         }
     }
 
@@ -1120,31 +1128,28 @@ class MWSClient{
      * @param string $ReportId
      * @return array on succes
      */
-    public function GetReport($ReportId)
+    public function GetReport($ReportId, $raw = false)
     {
         $status = $this->GetReportRequestStatus($ReportId);
-
         if ($status !== false && $status['ReportProcessingStatus'] === '_DONE_NO_DATA_') {
             return [];
         } else if ($status !== false && $status['ReportProcessingStatus'] === '_DONE_') {
 
             $result = $this->request('GetReport', [
-                'ReportId' => $status['GeneratedReportId']
-            ]);
-
-            if (is_string($result)) {
-                 // file_put_contents('pp.txt', $v);
-
-
-                $csv = Reader::createFromString($result);
-                $csv->setDelimiter("\t");
-                $headers = $csv->fetchOne();
-                $result = [];
-                foreach ($csv->setOffset(1)->fetchAll() as $row) {
-                    $result[] = array_combine($headers, $row);
+                'ReportId' => $status['GeneratedReportId'],
+            ], null, $raw);
+            if($raw == false){
+                if (is_string($result)) {
+                     // file_put_contents('pp.txt', $v);
+                    $csv = Reader::createFromString($result);
+                    $csv->setDelimiter("\t");
+                    $headers = $csv->fetchOne();
+                    $result = [];
+                    foreach ($csv->setOffset(1)->fetchAll() as $row) {
+                        $result[] = array_combine($headers, $row);
+                    }
                 }
             }
-
             return $result;
 
         } else {
@@ -1231,10 +1236,20 @@ class MWSClient{
 
         $query = array_merge($merge, $query);
  
-        if (!isset($query['MarketplaceId.Id.1'])) {
+       /* if (!isset($query['MarketplaceId.Id.1'])) {
             $query['MarketplaceId.Id.1'] = $this->config['Marketplace_Id'];
+        }*/
+        if(is_string($this->config['Marketplace_Id'])){
+            $query['MarketplaceId.Id.1'] = $this->config['Marketplace_Id'];
+        }else{
+            $MarketplaceIdNum = count($this->config['Marketplace_Id']);
+            $i = 1;
+            foreach ($this->config['Marketplace_Id'] as $key => $marketplaceId) {
+               $query['MarketplaceIdList.Id.'.$i] = $marketplaceId;
+               $i++;
+            }
+            
         }
- 
         if (!is_null($this->config['MWSAuthToken']) and $this->config['MWSAuthToken'] != "") {
             $query['MWSAuthToken'] = $this->config['MWSAuthToken'];
         } 
@@ -1281,14 +1296,20 @@ class MWSClient{
 //                     CURLOPT_TCP_KEEPIDLE => 10,
 //                 ];
 //             } else
+//           
             if ($endPoint['action']=='GetReport') {
                 $requestOptions['curl'] = [
-                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_0
+                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_0,
                 ];
             }
 
-            ksort($query);
+         /*   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+        curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
+        curl_setopt($ch, CURLOPT_FRESH_CONNECT, 1);
+        curl_setopt($ch, CURLOPT_HEADER, 1);*/
 
+            ksort($query);
             $query['Signature'] = base64_encode(
                 hash_hmac(
                     'sha256',
@@ -1305,25 +1326,35 @@ class MWSClient{
             );
 
             $requestOptions['query'] = $query;
-            
+
             if($this->client === NULL) {
                 $this->client = new Client();
             }
-
-            $response = $this->client->request(
+            
+           /* $response = $this->client->request(
                 $endPoint['method'],
                 $this->config['Region_Url'] . $endPoint['path'],
                 $requestOptions
-            );
+            );*/
+           
+            $queryParameters = array();
+            foreach ($requestOptions['query'] as $key => $value) {
+                $queryParameters[] = $key . '=' . $this->_urlencode($value);
+            }
+            $newRequestOptions['Post'] =  implode('&', $queryParameters);
+            $newRequestOptions['Header'] = $requestOptions['headers'];
+            
+            $response = $this->fetchURL( $this->config['Region_Url'] . $endPoint['path'],  $newRequestOptions);
 
-
-
-            $body = (string) $response->getBody();
-
-
+            if($response['code'] == 200){
+                $body = $response['body'];
+            }else{
+                $body = isset($response['body']) ? $response['body'] : "Bad Request";
+                throw new Exception($body);
+            }
             if ($raw) {
                 return $body;
-            } else if (strpos(strtolower($response->getHeader('Content-Type')[0]), 'xml') !== false) {
+            } else if (strpos(strtolower($response['headarray']['Content-Type']), 'xml') !== false) {
                 return $this->xmlToArray($body);
             } else {
                 return $body;
@@ -1346,5 +1377,110 @@ class MWSClient{
     
     public function setClient(Client $client) {
         $this->client = $client;
+    }
+
+     /**
+     * Get url or send POST data
+     * @param string $url
+     * @param array $param ['Header']
+     *               $param['Post']
+     * @return array $return['ok'] 1  - success, (0,-1) - fail
+     *               $return['body']  - response
+     *               $return['error'] - error, if "ok" is not 1
+     *               $return['head']  - http header
+     */
+    function fetchURL($url, $param)
+    {     
+        $return = array();
+
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+        curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
+        curl_setopt($ch, CURLOPT_FRESH_CONNECT, 1);
+        curl_setopt($ch, CURLOPT_HEADER, 1);
+        curl_setopt($ch, CURLOPT_URL, $url);
+        if (!empty($param)) {
+            if (!empty($param['Header'])) {
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $param['Header']);
+            }
+            if (!empty($param['Post'])) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $param['Post']);
+            }
+        }
+
+        if (!empty($this->proxyInfo)
+            && !empty($this->proxyInfo['ip'])
+            && !empty($this->proxyInfo['port'])
+        ) {
+            curl_setopt($ch, CURLOPT_PROXYAUTH, CURLAUTH_BASIC);
+            curl_setopt($ch, CURLOPT_PROXY, $this->proxyInfo['ip']);
+            curl_setopt($ch, CURLOPT_PROXYPORT, $this->proxyInfo['port']);
+            if (!empty($this->proxyInfo['user_pwd'])) {
+                curl_setopt($ch, CURLOPT_PROXYUSERPWD, $this->proxyInfo['user_pwd']);
+            }
+            curl_setopt($ch, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5);
+        }
+
+        $data = curl_exec($ch);
+        if (curl_errno($ch)) {
+            $return['ok'] = -1;
+            $return['error'] = curl_error($ch);
+            return $return;
+        }
+
+        if (is_numeric(strpos($data, 'HTTP/1.1 100 Continue'))) {
+            $data = str_replace('HTTP/1.1 100 Continue', '', $data);
+        }
+        $data = preg_split("/\r\n\r\n/", $data, 2, PREG_SPLIT_NO_EMPTY);
+        if (!empty($data)) {
+            $return['head'] = (isset($data[0]) ? $data[0] : null);
+            $return['body'] = (isset($data[1]) ? $data[1] : null);
+        } else {
+            $return['head'] = null;
+            $return['body'] = null;
+        }
+
+        $matches = array();
+        $data = preg_match("/HTTP\/[0-9.]+ ([0-9]+) (.+)\r\n/", $return['head'], $matches);
+        if (!empty($matches)) {
+            $return['code'] = $matches[1];
+            $return['answer'] = $matches[2];
+        }
+
+        $data = preg_match("/meta http-equiv=.refresh. +content=.[0-9]*;url=([^'\"]*)/i", $return['body'], $matches);
+        if (!empty($matches)) {
+            $return['location'] = $matches[1];
+            $return['code'] = '301';
+        }
+
+        if ($return['code'] == '200' || $return['code'] == '302') {
+            $return['ok'] = 1;
+        } else {
+            $return['error'] = (($return['answer'] and $return['answer'] != 'OK') ? $return['answer'] : 'Something wrong!');
+            $return['ok'] = 0;
+        }
+
+        foreach (preg_split('/\n/', $return['head'], -1, PREG_SPLIT_NO_EMPTY) as $value) {
+            $data = preg_split('/:/', $value, 2, PREG_SPLIT_NO_EMPTY);
+            if (is_array($data) and isset($data['1'])) {
+                $return['headarray'][$data['0']] = trim($data['1']);
+            }
+        }
+
+        curl_close($ch);
+        return $return;
+    }
+     /**
+     * Reformats the provided string using rawurlencode while also replacing ~, copied from Amazon
+     *
+     * Almost the same as using rawurlencode
+     * @param string $value
+     * @return string
+     */
+    protected function _urlencode($value)
+    {
+        return str_replace('%7E', '~', rawurlencode($value));
     }
 }
