@@ -684,11 +684,12 @@ class MWSClient {
                         }
                         if (isset($product['Relationships']['VariationParent']['Identifiers']['MarketplaceASIN']['ASIN'])) {
                             $array['Parentage'] = 'child';
-                $array['Relationships'] = $product['Relationships']['VariationParent']['Identifiers']['MarketplaceASIN']['ASIN'];
+                            $array['Relationships'] = $product['Relationships']['VariationParent']['Identifiers']['MarketplaceASIN']['ASIN'];
                         }
-            if (isset($product['Relationships']['VariationChild'])) {
-                    $array['Parentage'] = 'parent';
-                    }
+                        if (isset($product['Relationships']['VariationChild'])) {
+                            $array['Parentage'] = 'parent';
+                            $array['Relationships'] = $product['Relationships']['VariationChild'];
+                        }
                         if (isset($product['SalesRankings']['SalesRank'])) {
                             $array['SalesRank'] = $product['SalesRankings']['SalesRank'];
                         }
@@ -1138,6 +1139,7 @@ class MWSClient {
             $result = $this->request('GetReport', [
                 'ReportId' => $status['GeneratedReportId'],
             ], null, $raw);
+
             if($raw == false){
                 if (is_string($result)) {
                      // file_put_contents('pp.txt', $v);
@@ -1171,8 +1173,10 @@ class MWSClient {
         if (isset($result['GetReportRequestListResult']['ReportRequestInfo'])) {
             return $result['GetReportRequestListResult']['ReportRequestInfo'];
         }
+        $message = is_array($result) ? json_encode($result) : $result;
 
-        return false;
+        throw new Exception($message);
+        //return false;
 
     }
     
@@ -1219,8 +1223,7 @@ class MWSClient {
      * Request MWS
      */
     private function request($endPoint, array $query = [], $body = null, $raw = false)
-    {
-
+    { 
         $endPoint = MWSEndPoint::get($endPoint); 
 
         $merge = [
@@ -1235,21 +1238,27 @@ class MWSClient {
         ];
 
         $query = array_merge($merge, $query);
+
  
        /* if (!isset($query['MarketplaceId.Id.1'])) {
             $query['MarketplaceId.Id.1'] = $this->config['Marketplace_Id'];
         }*/
         if(is_string($this->config['Marketplace_Id'])){
-            $query['MarketplaceId.Id.1'] = $this->config['Marketplace_Id'];
+            $query['MarketplaceIdList.Id.1'] = $this->config['Marketplace_Id'];
         }else{
             $MarketplaceIdNum = count($this->config['Marketplace_Id']);
-            $i = 1;
-            foreach ($this->config['Marketplace_Id'] as $key => $marketplaceId) {
-               $query['MarketplaceIdList.Id.'.$i] = $marketplaceId;
-               $i++;
-            }
-            
+            if($MarketplaceIdNum == 1){
+                $query['MarketplaceIdList.Id.1'] = $this->config['Marketplace_Id'][0];
+            }else{
+                $i = 1;
+                foreach ($this->config['Marketplace_Id'] as $key => $marketplaceId) {
+                   $query['MarketplaceIdList.Id.'.$i] = $marketplaceId;
+                   $i++;
+                }
+            } 
         }
+        //unset($query['Marketplace_Id']);
+
         if (!is_null($this->config['MWSAuthToken']) and $this->config['MWSAuthToken'] != "") {
             $query['MWSAuthToken'] = $this->config['MWSAuthToken'];
         } 
@@ -1257,6 +1266,7 @@ class MWSClient {
         if (isset($query['MarketplaceId'])) {
             unset($query['MarketplaceId.Id.1']);
         }
+
 
         if (isset($query['MarketplaceIdList.Id.1'])) {
             unset($query['MarketplaceId.Id.1']);
@@ -1324,7 +1334,6 @@ class MWSClient {
                     true
                 )
             );
-
             $requestOptions['query'] = $query;
 
             if($this->client === NULL) {
@@ -1343,10 +1352,9 @@ class MWSClient {
             }
             $newRequestOptions['Post'] =  implode('&', $queryParameters);
             $newRequestOptions['Header'] = $requestOptions['headers'];
-            
             $response = $this->fetchURL( $this->config['Region_Url'] . $endPoint['path'],  $newRequestOptions);
 
-            if($response['code'] == 200){
+            if(is_array($response) and  $response['code'] == 200){
                 $body = $response['body'];
             }else{
                 $body = isset($response['body']) ? $response['body'] : "Bad Request";
