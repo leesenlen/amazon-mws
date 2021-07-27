@@ -1132,6 +1132,7 @@ class MWSClient {
     public function GetReport($ReportId, $raw = false)
     {
         $status = $this->GetReportRequestStatus($ReportId);
+        dd($status);
         if ($status !== false && $status['ReportProcessingStatus'] === '_DONE_NO_DATA_') {
             return [];
         } else if ($status !== false && $status['ReportProcessingStatus'] === '_DONE_') {
@@ -1139,7 +1140,6 @@ class MWSClient {
             $result = $this->request('GetReport', [
                 'ReportId' => $status['GeneratedReportId'],
             ], null, $raw);
-
             if($raw == false){
                 if (is_string($result)) {
                      // file_put_contents('pp.txt', $v);
@@ -1223,7 +1223,8 @@ class MWSClient {
      * Request MWS
      */
     private function request($endPoint, array $query = [], $body = null, $raw = false)
-    { 
+    {
+
         $endPoint = MWSEndPoint::get($endPoint); 
 
         $merge = [
@@ -1238,7 +1239,6 @@ class MWSClient {
         ];
 
         $query = array_merge($merge, $query);
-
  
        /* if (!isset($query['MarketplaceId.Id.1'])) {
             $query['MarketplaceId.Id.1'] = $this->config['Marketplace_Id'];
@@ -1266,7 +1266,6 @@ class MWSClient {
         if (isset($query['MarketplaceId'])) {
             unset($query['MarketplaceId.Id.1']);
         }
-
 
         if (isset($query['MarketplaceIdList.Id.1'])) {
             unset($query['MarketplaceId.Id.1']);
@@ -1334,6 +1333,7 @@ class MWSClient {
                     true
                 )
             );
+
             $requestOptions['query'] = $query;
 
             if($this->client === NULL) {
@@ -1353,11 +1353,10 @@ class MWSClient {
             $newRequestOptions['Post'] =  implode('&', $queryParameters);
             $newRequestOptions['Header'] = $requestOptions['headers'];
             $response = $this->fetchURL( $this->config['Region_Url'] . $endPoint['path'],  $newRequestOptions);
-
-            if(is_array($response) and  $response['code'] == 200){
+            if(isset($response['code']) and  $response['code'] == 200){
                 $body = $response['body'];
             }else{
-                $body = isset($response['body']) ? $response['body'] : "Bad Request";
+                $body = is_array($response) ? json_encode($response) : $response;
                 throw new Exception($body);
             }
             if ($raw) {
