@@ -48,7 +48,7 @@ class MWSClient {
     ];
 
     private $area = [
-        'NA'=>'mws-eu.amazonservices.com',
+        'NA'=>'mws.amazonservices.com',
         'EU'=>'mws-eu.amazonservices.com',
         'FE'=>'mws.amazonservices.jp',
         'IN'=>'mws.amazonservices.in',
@@ -82,7 +82,7 @@ class MWSClient {
 
         $this->config['Application_Name'] = self::APPLICATION_NAME;
         $this->config['Region_Host'] = $this->area[$this->config['Area']];
-        //兼容酷鸟开发者
+        //兼容酷鸟开发�?
         if($this->config['Secret_Access_Key'] != 2){
             $this->config['Region_Url'] = 'https://' . $this->config['Region_Host']; 
         }else{
